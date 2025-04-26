@@ -90,9 +90,9 @@ export default function Home() {
             <div className="flex flex-col justify-center space-y-4">
               <div className="space-y-2">
                 <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl xl:text-5xl">
-                  发现、收集与交易 <span className="text-primary">稀有数字藏品</span>
+                  创建、上架与交易 <span className="text-primary">你的二手商品</span>
                 </h1>
-                <p className="text-muted-foreground md:text-lg">专业的 NFT 藏品交易平台，连接创作者与收藏家</p>
+                <p className="text-muted-foreground md:text-lg">专业的二手商品NFT交易平台，连接买家与卖家</p>
               </div>
               <div className="flex flex-col gap-2 min-[400px]:flex-row">
                 <Button
@@ -104,11 +104,11 @@ export default function Home() {
                     }
                   }}
                 >
-                  浏览藏品
+                  浏览二手商品
                 </Button>
                 <Link href="/create">
                   <Button size="lg" variant="outline">
-                    创建 NFT 藏品
+                    申请创建二手商品NFT
                   </Button>
                 </Link>
               </div>
@@ -124,7 +124,7 @@ export default function Home() {
                     <Link href={`/nft/${featuredNFT.id}`}>
                       <Image
                         src={featuredNFT.image || '/placeholder.png'}
-                        alt={featuredNFT.title || '精选藏品'}
+                        alt={featuredNFT.title || '精选二手商品'}
                         width={500}
                         height={500}
                         className="object-cover"
@@ -146,7 +146,7 @@ export default function Home() {
                   ) : (
                     <Image
                       src="/placeholder.png"
-                      alt="精选藏品"
+                      alt="精选二手商品"
                       width={500}
                       height={500}
                       className="object-cover"
@@ -164,17 +164,12 @@ export default function Home() {
         <div className="container px-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
-              <h2 className="text-2xl font-bold">藏品市场</h2>
-              <p className="text-muted-foreground">探索精选的数字藏品</p>
+              <h2 className="text-2xl font-bold">二手商品市场</h2>
+              <p className="text-muted-foreground">探索精选的二手商品</p>
             </div>
             <div className="flex items-center gap-2">
               <Link href="/create">
-                <Button className="gap-1">出售 NFT</Button>
-              </Link>
-              <Link href="/explore">
-                <Button variant="outline" className="gap-1">
-                  高级筛选 <ArrowRight className="h-4 w-4" />
-                </Button>
+                <Button className="gap-1">出售 二手商品</Button>
               </Link>
             </div>
           </div>
@@ -206,23 +201,16 @@ export default function Home() {
           <div className="relative overflow-hidden rounded-lg">
             <div className="absolute inset-0 bg-primary opacity-90"></div>
             <div className="relative p-6 md:p-8 text-center">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">开始出售您的数字藏品</h2>
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">开始出售您的二手商品</h2>
               <p className="text-white/90 mb-6 max-w-2xl mx-auto">
-                加入专业的 NFT 藏品交易平台，与数千名创作者和收藏家一起探索数字藏品的无限可能
+              加入专业的二手商品NFT交易平台
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link href="/create">
                   <Button size="lg" variant="secondary">
-                    出售 NFT
+                    出售二手商品
                   </Button>
                 </Link>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="bg-transparent text-white border-white hover:bg-white hover:text-primary"
-                >
-                  了解更多
-                </Button>
               </div>
             </div>
           </div>
@@ -288,7 +276,7 @@ function MarketplaceNFTGrid({
         </div>
       ) : nfts.length === 0 ? (
         <div className="col-span-full text-center py-8">
-          <p className="text-muted-foreground">暂无上架的 NFT</p>
+          <p className="text-muted-foreground">暂无上架的二手商品NFT</p>
         </div>
       ) : (
         paginatedNfts.map((nft) => (

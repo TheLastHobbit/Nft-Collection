@@ -81,7 +81,7 @@ export default function CreateNFTPage() {
   // 处理第一步提交
   async function onSubmitStep1(values: z.infer<typeof step1Schema>) {
     if (!imagePreview || !uploadedFile) {
-      toast.error("请上传藏品图片")
+      toast.error("请上传商品图片")
       return
     }
 
@@ -185,8 +185,8 @@ export default function CreateNFTPage() {
   return (
     <div className="container px-4 py-8 max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">出售数字藏品</h1>
-        <p className="text-muted-foreground mt-2">填写信息并上传图片来创建您的数字藏品</p>
+        <h1 className="text-3xl font-bold">创建二手商品NFT</h1>
+        <p className="text-muted-foreground mt-2">填写信息并上传图片来创建二手商品的NFT</p>
       </div>
 
       <div className="mb-8">
@@ -207,7 +207,7 @@ export default function CreateNFTPage() {
               >
                 2
               </div>
-              <span className="text-sm mt-2">铸造藏品</span>
+              <span className="text-sm mt-2">铸造商品</span>
             </div>
           </div>
         </div>
@@ -223,31 +223,33 @@ export default function CreateNFTPage() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>藏品名称 *</FormLabel>
+                      <FormLabel>商品名称 *</FormLabel>
                       <FormControl>
-                        <Input placeholder="输入藏品名称" {...field} />
+                        <Input placeholder="输入商品名称" {...field} />
                       </FormControl>
-                      <FormDescription>为您的数字藏品取一个独特且有吸引力的名称</FormDescription>
+                      <FormDescription>命名您的二手商品</FormDescription>
+                      <FormDescription>    </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <FormField
+<FormField
                   control={step1Form.control}
                   name="price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>价格 (ETH) *</FormLabel>
+                      <FormLabel>价格 (cUSDT) *</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input placeholder="输入价格" {...field} />
                           <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground">
-                            ETH
+                            cUSDT
                           </div>
                         </div>
                       </FormControl>
-                      <FormDescription>设置您的数字藏品售价（以ETH为单位）</FormDescription>
+                      <FormDescription>设置您的二手商品价格（以cUSDT为单位）</FormDescription>
+                      <FormDescription> </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -260,9 +262,9 @@ export default function CreateNFTPage() {
                     <FormItem>
                       <FormLabel>描述 *</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="描述您的数字藏品..." className="min-h-[120px]" {...field} />
+                        <Textarea placeholder="描述您的商品..." className="min-h-[120px]" {...field} />
                       </FormControl>
-                      <FormDescription>详细描述您的数字藏品，包括其独特性和背景故事</FormDescription>
+                      <FormDescription>详细描述您的商品，包括其成色、购买渠道等</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -275,7 +277,6 @@ export default function CreateNFTPage() {
                       <>
                         <Upload className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
                         <p className="text-muted-foreground mb-2">拖放图片或点击上传</p>
-                        <p className="text-xs text-muted-foreground mb-4">支持JPG, PNG, GIF, 最大10MB</p>
                         <div className="relative">
                           <Input
                             type="file"
@@ -292,7 +293,7 @@ export default function CreateNFTPage() {
                       <div className="relative">
                         <Image
                           src={imagePreview || "/placeholder.svg"}
-                          alt="藏品预览"
+                          alt="商品预览"
                           width={300}
                           height={300}
                           className="mx-auto rounded-lg max-h-[300px] w-auto object-contain"
@@ -321,28 +322,17 @@ export default function CreateNFTPage() {
             <div className="sticky top-20 space-y-6">
               <Link href="/my-collections">
                 <Button className="w-full py-6 text-lg" size="lg">
-                  查看我的藏品
+                  查看我的商品
                 </Button>
               </Link>
 
               <div className="space-y-4">
-                <h3 className="text-lg font-medium">创建藏品指南</h3>
+                <h3 className="text-lg font-medium">创建商品指南</h3>
                 <div className="space-y-2 text-sm text-muted-foreground">
-                  <p>• 选择高质量的图片以吸引买家</p>
-                  <p>• 详细描述您的数字藏品以增加其价值</p>
+                  <p>• 上传高质量的图片以吸引买家</p>
+                  <p>• 详细描述您的二手商品以增加其可信度</p>
                   <p>• 设置合理的价格以提高销售机会</p>
                 </div>
-                <Alert variant="outline" className="mt-4">
-                  <Info className="h-4 w-4" />
-                  <AlertTitle>需要帮助？</AlertTitle>
-                  <AlertDescription>
-                    查看我们的
-                    <a href="/guide" className="text-primary underline">
-                      创作者指南
-                    </a>
-                    获取更多信息
-                  </AlertDescription>
-                </Alert>
               </div>
             </div>
           </div>
@@ -353,13 +343,13 @@ export default function CreateNFTPage() {
             <Alert className="mb-6 bg-green-500/10 text-green-500 border-green-500/20">
               <CheckCircle2 className="h-4 w-4" />
               <AlertTitle>元数据已保存</AlertTitle>
-              <AlertDescription>您的数字藏品元数据已上传保存在IPFS，哈希值: {metadata?.ipfsHash}</AlertDescription>
+              <AlertDescription>您的数字商品元数据已上传保存在IPFS，哈希值: {metadata?.ipfsHash}</AlertDescription>
             </Alert>
 
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle>藏品铸造</CardTitle>
-                <CardDescription>选择区块链网络并铸造您的数字藏品</CardDescription>
+                <CardTitle>商品铸造</CardTitle>
+                <CardDescription>选择区块链网络并铸造您的数字商品</CardDescription>
               </CardHeader>
               <CardContent>
                 <Form {...step2Form}>
@@ -384,7 +374,7 @@ export default function CreateNFTPage() {
                             </SelectContent>
                           </Select>
                           <FormDescription>
-                            选择您想要铸造数字藏品的区块链网络。不同网络的Gas费用和处理时间各不相同。
+                            选择您想要铸造数字商品的区块链网络。不同网络的Gas费用和处理时间各不相同。
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -395,7 +385,7 @@ export default function CreateNFTPage() {
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>注意</AlertTitle>
                       <AlertDescription>
-                        铸造数字藏品需要支付Gas费用。确保您的钱包中有足够的加密货币来支付交易费用。
+                        铸造数字商品需要支付Gas费用。确保您的钱包中有足够的加密货币来支付交易费用。
                       </AlertDescription>
                     </Alert>
 
@@ -404,7 +394,7 @@ export default function CreateNFTPage() {
                         返回
                       </Button>
                       <Button type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? "铸造中..." : "铸造藏品"}
+                        {isSubmitting ? "铸造中..." : "铸造商品"}
                       </Button>
                     </div>
                   </form>
@@ -417,12 +407,12 @@ export default function CreateNFTPage() {
             <div className="sticky top-20 space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>藏品预览</CardTitle>
+                  <CardTitle>商品预览</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="aspect-square relative bg-muted rounded-lg overflow-hidden mb-4">
                     {imagePreview && (
-                      <Image src={imagePreview || "/placeholder.svg"} alt="藏品预览" fill className="object-contain" />
+                      <Image src={imagePreview || "/placeholder.svg"} alt="商品预览" fill className="object-contain" />
                     )}
                   </div>
                   <div className="space-y-2">
@@ -446,7 +436,7 @@ export default function CreateNFTPage() {
                 <Info className="h-4 w-4" />
                 <AlertTitle>铸造过程</AlertTitle>
                 <AlertDescription className="text-sm">
-                  铸造数字藏品是将您的数字资产永久记录在区块链上的过程。一旦铸造完成，您的藏品将可以在市场上出售。
+                  铸造数字商品是将您的数字资产永久记录在区块链上的过程。一旦铸造完成，您的商品将可以在市场上出售。
                 </AlertDescription>
               </Alert>
             </div>

@@ -170,7 +170,7 @@ export default function SellNFTPage() {
       <div className="container px-4 py-8">
         <div className="text-center py-12">
           <h3 className="text-lg font-medium mb-2">请先连接钱包</h3>
-          <p className="text-muted-foreground mb-6">连接钱包以出售您的 NFT 藏品</p>
+          <p className="text-muted-foreground mb-6">连接钱包以出售您的 NFT 商品</p>
         </div>
       </div>
     );
@@ -181,7 +181,7 @@ export default function SellNFTPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold">出售 NFT</h1>
-          <p className="text-muted-foreground">选择并出售您拥有的数字藏品</p>
+          <p className="text-muted-foreground">选择并出售您的二手商品</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={toggleSelectAll}>
@@ -211,7 +211,7 @@ export default function SellNFTPage() {
                 <TableCell className="w-[80px]">预览</TableCell>
                 <TableCell className="cursor-pointer" onClick={() => handleSort('title')}>
                   <div className="flex items-center">
-                    藏品名称
+                    商品名称
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                   </div>
                 </TableCell>
@@ -266,8 +266,8 @@ export default function SellNFTPage() {
         </div>
       ) : (
         <div className="text-center py-12">
-          <h3 className="text-lg font-medium mb-2">您还没有任何可出售的藏品</h3>
-          <p className="text-muted-foreground mb-6">浏览市场并购买您喜欢的数字藏品，或创建您自己的藏品</p>
+          <h3 className="text-lg font-medium mb-2">您还没有任何可出售的商品</h3>
+          <p className="text-muted-foreground mb-6">浏览市场并购买您喜欢的数字商品，或创建您自己的商品</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/marketplace">
               <Button>浏览市场</Button>
@@ -284,7 +284,7 @@ export default function SellNFTPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>批量出售 {selectedCount} 个 NFT</DialogTitle>
-            <DialogDescription>设置您希望出售这些数字藏品的价格（以 cUSDT 为单位）</DialogDescription>
+            <DialogDescription>设置您希望出售这些数字商品的价格（以 cUSDT 为单位）</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
@@ -326,7 +326,7 @@ export default function SellNFTPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>出售 {selectedNFTForSale?.title}</DialogTitle>
-            <DialogDescription>设置您希望出售此数字藏品的价格（以 cUSDT 为单位）</DialogDescription>
+            <DialogDescription>设置您希望出售此数字商品的价格（以 cUSDT 为单位）</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
@@ -349,7 +349,7 @@ export default function SellNFTPage() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>市场提示</AlertTitle>
               <AlertDescription>
-                设置合理的价格可以提高出售成功率。您可以参考市场上类似藏品的价格来定价。
+                设置合理的价格可以提高出售成功率。您可以参考市场上类似商品的价格来定价。
               </AlertDescription>
             </Alert>
           </div>

@@ -14,58 +14,32 @@ export default function ArbitrationPage() {
   const [disputes, setDisputes] = useState([
     {
       id: 1,
-      nftTitle: "宇宙视角 #31",
-      nftImage: "/placeholder.svg?height=400&width=400",
-      seller: "cosmic_artist",
-      buyer: "art_collector",
+      nftTitle: "二手苹果充电宝",
+      nftImage: "/1.png",
+      seller: "0x01f93051A949971c812E57b9802B7749f53534B6",
+      buyer: "0xb5B60f020d741069C28b84EeA3Ad8D08385eD4D3",
       amount: "2.5 ETH",
-      disputeDate: "2024-04-20",
+      disputeDate: "2025-04-20",
       status: "进行中",
       votes: { seller: 12, buyer: 8 },
       requiredVotes: 25,
-      description: "买家声称NFT与描述不符，卖家坚持认为描述准确。",
+      description: "买家声称充电宝功能损坏与描述不符，卖家坚持功能正常。",
       timeLeft: "2天12小时",
     },
-    {
-      id: 2,
-      nftTitle: "数字梦境 #08",
-      nftImage: "/placeholder.svg?height=400&width=400",
-      seller: "future_labs",
-      buyer: "nft_enthusiast",
-      amount: "1.8 ETH",
-      disputeDate: "2024-04-18",
-      status: "进行中",
-      votes: { seller: 15, buyer: 10 },
-      requiredVotes: 31,
-      description: "交易完成后，买家发现NFT的元数据有问题。",
-      timeLeft: "1天8小时",
-    },
-    {
-      id: 3,
-      nftTitle: "抽象领域",
-      nftImage: "/placeholder.svg?height=400&width=400",
-      seller: "art_collective",
-      buyer: "digital_collector",
-      amount: "3.2 ETH",
-      disputeDate: "2024-04-15",
-      status: "已解决",
-      votes: { seller: 18, buyer: 25 },
-      requiredVotes: 43,
-      description: "买家认为NFT是抄袭作品，仲裁结果支持买家。",
-      timeLeft: "已结束",
-    },
+
+
     {
       id: 4,
-      nftTitle: "霓虹创世 #12",
-      nftImage: "/placeholder.svg?height=400&width=400",
-      seller: "cyber_visuals",
-      buyer: "meta_investor",
+      nftTitle: "二手充电器",
+      nftImage: "/2.png",
+      seller: "0x01f93051A949971c812E57b9802B7749f53534B6",
+      buyer: "0xb5B60f020d741069C28b84EeA3Ad8D08385eD4D3",
       amount: "1.4 ETH",
       disputeDate: "2024-04-12",
       status: "已解决",
       votes: { seller: 22, buyer: 11 },
       requiredVotes: 33,
-      description: "买家声称没有收到NFT，但交易记录显示已转移。仲裁结果支持卖家。",
+      description: "买家声称商品是假冒产品，但卖家出示购买记录显示其为正品。仲裁结果支持卖家。",
       timeLeft: "已结束",
     },
   ])
@@ -101,14 +75,7 @@ export default function ArbitrationPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="搜索争议..."
-              className="pl-8 w-[200px]"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+            
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[120px]">
@@ -151,11 +118,11 @@ export default function ArbitrationPage() {
                   <div className="mt-2 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">卖家:</span>
-                      <span>@{dispute.seller}</span>
+                      <span>{dispute.seller}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">买家:</span>
-                      <span>@{dispute.buyer}</span>
+                      <span>{dispute.buyer}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">金额:</span>

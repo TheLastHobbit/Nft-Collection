@@ -23,31 +23,31 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
     setTimeout(() => {
       const disputeData = {
         id: Number.parseInt(params.id),
-        nftTitle: "宇宙视角 #31",
-        nftImage: "/placeholder.svg?height=600&width=600",
+        nftTitle: "二手苹果充电宝",
+        nftImage: "/1.png",
         seller: {
-          username: "cosmic_artist",
+          username: "0x01f93051A949971c812E57b9802B7749f53534B6",
           avatar: "/placeholder.svg?height=100&width=100",
           argument:
-            "我提供的NFT完全符合描述，包括所有承诺的特性和元数据。买家在购买前已经查看了完整的预览和详细信息，并同意了交易条款。这是一个有效的交易，应该维持原状。",
+            "我提供的充电宝完全符合描述，功能全部正常。买家在购买前已经查看了完整的预览和详细信息，并同意了交易条款。这是一个有效的交易，应该维持原状。",
         },
         buyer: {
-          username: "art_collector",
+          username: "0xb5B60f020d741069C28b84EeA3Ad8D08385eD4D3",
           avatar: "/placeholder.svg?height=100&width=100",
           argument:
-            "我购买的NFT与卖家描述的有重大差异。元数据中承诺的某些特性并不存在，这严重影响了NFT的价值和稀有度。我要求退款或者卖家提供符合原始描述的NFT。",
+            "我购买的二手充电宝与卖家描述的有重大差异。元数据中承诺的功能完好并不存在，这严重影响了二手商品的价值。我要求退款或者卖家提供符合原始描述的二手商品。",
         },
         transaction: {
           txHash: "0x1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t",
           amount: "2.5 ETH",
-          date: "2024-04-15 14:30:22",
+          date: "2025-04-15 14:30:22",
           blockNumber: "18245367",
         },
-        disputeDate: "2024-04-20",
+        disputeDate: "2025-04-20",
         status: "进行中",
         votes: { seller: 12, buyer: 8 },
         requiredVotes: 25,
-        description: "买家声称NFT与描述不符，卖家坚持认为描述准确。",
+        description: "买家声称充电宝功能损坏与描述不符，卖家坚持功能正常。",
         timeLeft: "2天12小时",
         evidence: [
           {
@@ -74,15 +74,15 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
         ],
         updates: [
           {
-            date: "2024-04-20",
+            date: "2025-04-20",
             content: "争议已提交，等待仲裁",
           },
           {
-            date: "2024-04-21",
+            date: "2025-04-21",
             content: "卖家提交了回应和证据",
           },
           {
-            date: "2024-04-22",
+            date: "2025-04-22",
             content: "买家提交了额外证据",
           },
         ],

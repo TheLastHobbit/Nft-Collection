@@ -20,10 +20,12 @@ interface WalletState {
 }
 
 const routes = [
-  { name: "创建NFT", path: "/create" },
+  { name: "申请创建商品NFT", path: "/create" },
+  { name: "实物验证大厅", path: "/arbitration" },
   { name: "出售NFT", path: "/sell" },
-  { name: "我的藏品", path: "/my-collections" },
   { name: "仲裁大厅", path: "/arbitration" },
+  { name: "我的商品", path: "/my-collections" },
+  
 ]
 
 // 创建一个自定义 hook 来管理钱包状态
@@ -309,7 +311,7 @@ export default function Header() {
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2">
             <span className="h-8 w-8 rounded-full bg-primary"></span>
-            <span className="font-bold text-xl">NFT藏品交易平台</span>
+            <span className="font-bold text-xl">NFT二手商品交易系统</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-6">
@@ -329,10 +331,7 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="relative hidden md:flex items-center">
-            <Input type="search" placeholder="搜索NFT藏品、系列、创作者..." className="w-[250px] pl-8" />
-            <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground" />
-          </div>
+
 
           <div className="hidden md:flex items-center gap-2">
             <WalletButton />

@@ -152,7 +152,7 @@ export default function MyCollectionsPage() {
       <div className="container px-4 py-8">
         <div className="text-center py-12">
           <h3 className="text-lg font-medium mb-2">请先连接钱包</h3>
-          <p className="text-muted-foreground mb-6">连接钱包以查看您的 NFT 藏品</p>
+          <p className="text-muted-foreground mb-6">连接钱包以查看您的 NFT 商品</p>
         </div>
       </div>
     );
@@ -163,8 +163,8 @@ export default function MyCollectionsPage() {
       <div className="mb-8 p-6 bg-background border border-border rounded-lg">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold">我的藏品</h1>
-            <p className="text-muted-foreground">管理您购买和创建的数字藏品</p>
+            <h1 className="text-2xl font-bold">我的商品</h1>
+            <p className="text-muted-foreground">管理您购买和创建的二手商品</p>
           </div>
           <Link href="/create">
             <Button className="gap-2">
@@ -232,7 +232,7 @@ export default function MyCollectionsPage() {
           ) : userNFTs.length === 0 ? (
             <div className="text-center py-12">
               <h3 className="text-lg font-medium mb-2">暂无 NFT</h3>
-              <p className="text-muted-foreground mb-6">您还没有任何 NFT 藏品</p>
+              <p className="text-muted-foreground mb-6">您还没有任何 NFT 商品</p>
               <Link href="/marketplace">
                 <Button>浏览市场</Button>
               </Link>
