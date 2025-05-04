@@ -25,7 +25,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+      <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
           <WalletProvider>
             <div className="flex min-h-screen flex-col">
               <Header />
