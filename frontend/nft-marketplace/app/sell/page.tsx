@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -19,9 +19,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertCircle, Info, ArrowUpDown } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useWalletContext } from '@/components/wallet-provider';
-import { ethers } from 'ethers';
 import { toast } from 'sonner';
 import * as nftClient from '@/utils/nft.client';
+import * as voteClient from '@/utils/vote.client';
 
 interface NFT {
   id: number;
@@ -29,19 +29,45 @@ interface NFT {
   description: string;
   image: string;
   owner: string;
-  selected?: boolean;
 }
 
 export default function SellNFTPage() {
   const { address } = useWalletContext();
+  const router = useRouter();
   const [ownedNFTs, setOwnedNFTs] = useState<NFT[]>([]);
-  const [batchSellDialogOpen, setBatchSellDialogOpen] = useState(false);
   const [singleSellDialogOpen, setSingleSellDialogOpen] = useState(false);
   const [selectedNFTForSale, setSelectedNFTForSale] = useState<NFT | null>(null);
   const [sellPrice, setSellPrice] = useState('');
+  const [voteStatus, setVoteStatus] = useState<{
+    requestId: number;
+    result: number; // -1: 未创建, 0: Pending, 1: Approved, 2: Rejected
+    message: string;
+  } | null>(null);
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // 检查投票状态（轮询）
+  const waitForVoteApproval = async (requestId: number, timeoutMs = 300000) => {
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        const status = await voteClient.getVoteStatus(requestId);
+        if (status.result === 1) { // Approved
+          return true;
+        } else if (status.result === 2) { // Rejected
+          return false;
+        }
+        // 等待 10 秒后再次检查
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+      } catch (error) {
+        console.error('检查投票状态失败:', error);
+        return false;
+      }
+    }
+    return false; // 超时
+  };
 
   // 获取用户拥有的 NFT
   const fetchOwnedNFTs = async () => {
@@ -50,7 +76,7 @@ export default function SellNFTPage() {
     setIsLoading(true);
     try {
       const { nfts } = await nftClient.getUserNFTs(address);
-      setOwnedNFTs(nfts.map((nft) => ({ ...nft, selected: false })));
+      setOwnedNFTs(nfts);
     } catch (error) {
       console.error('获取 NFT 失败:', error);
       toast.error('获取 NFT 失败');
@@ -65,58 +91,105 @@ export default function SellNFTPage() {
     }
   }, [address]);
 
-  // 选择/取消选择所有 NFT
-  const toggleSelectAll = () => {
-    const allSelected = ownedNFTs.every((nft) => nft.selected);
-    setOwnedNFTs(ownedNFTs.map((nft) => ({ ...nft, selected: !allSelected })));
-  };
-
-  // 选择/取消选择单个 NFT
-  const toggleSelectNFT = (id: number) => {
-    setOwnedNFTs(ownedNFTs.map((nft) => (nft.id === id ? { ...nft, selected: !nft.selected } : nft)));
-  };
-
-  // 获取选中的 NFT 数量
-  const selectedCount = ownedNFTs.filter((nft) => nft.selected).length;
-
-  // 打开单个 NFT 出售对话框
-  const openSingleSellDialog = (nft: NFT) => {
+  // 打开单个 NFT 出售对话框并检查投票状态
+  const openSingleSellDialog = async (nft: NFT) => {
     setSelectedNFTForSale(nft);
     setSellPrice('');
-    setSingleSellDialogOpen(true);
+    setVoteStatus(null);
+    setIsProcessing(true);
+
+    try {
+      const tokenId = nft.id; // 直接使用 nft.id 作为 tokenId
+      const requestId = await voteClient.getRequestIdByTokenId(tokenId);
+
+      if (requestId > 0) {
+        const status = await voteClient.getVoteStatus(requestId);
+        if (status.result === 1) {
+          setVoteStatus({
+            requestId,
+            result: 1,
+            message: '投票已通过，可以上架商品',
+          });
+        } else if (status.result === 0) {
+          setVoteStatus({
+            requestId,
+            result: 0,
+            message: `投票（ID: ${requestId}）仍在进行中，请等待投票结果`,
+          });
+        } else {
+          setVoteStatus({
+            requestId,
+            result: 2,
+            message: `投票（ID: ${requestId}）未通过，请联系管理员`,
+          });
+        }
+      } else {
+        setVoteStatus({
+          requestId: 0,
+          result: -1,
+          message: '未创建投票请求，请创建投票',
+        });
+      }
+    } catch (error) {
+      console.error('检查投票状态失败:', error);
+      toast.error('检查投票状态失败');
+      setVoteStatus(null);
+    } finally {
+      setIsProcessing(false);
+      setSingleSellDialogOpen(true);
+    }
   };
 
-  // 处理批量出售
-  const handleBatchSell = async () => {
-    if (!address || !window.ethereum) {
+  // 创建投票请求
+  const handleCreateVote = async () => {
+    if (!address || !window.ethereum || !selectedNFTForSale) {
       toast.error('请连接 MetaMask');
       return;
     }
 
+    setIsProcessing(true);
     try {
-      const price = parseFloat(sellPrice);
-      if (isNaN(price) || price <= 0) {
-        toast.error('请输入有效的价格');
-        return;
-      }
+      const tokenId = selectedNFTForSale.id; // 直接使用 nft.id
+      toast.info(`为 NFT ${selectedNFTForSale.title} 创建投票请求...`);
+      const { txHash, requestId } = await voteClient.createVoteRequest(tokenId);
+      toast.success(`NFT ${selectedNFTForSale.title} 的投票请求已创建，交易哈希: ${txHash}`);
 
-      const selectedNFTs = ownedNFTs.filter((nft) => nft.selected);
-      for (const nft of selectedNFTs) {
-        await nftClient.sellNFT(address, nft.id, sellPrice);
-      }
+      // 更新投票状态
+      setVoteStatus({
+        requestId,
+        result: 0,
+        message: `投票（ID: ${requestId}）已创建，请等待投票结果`,
+      });
 
-      toast.success(`已将 ${selectedCount} 个 NFT 上架出售`);
-      setBatchSellDialogOpen(false);
-      setOwnedNFTs(ownedNFTs.map((nft) => ({ ...nft, selected: false })));
-      await fetchOwnedNFTs(); // 刷新 NFT 列表
+      // 跳转到验证大厅
+      toast.info('投票请求已创建，正在跳转到验证大厅...');
+      router.push('/verification');
+
+      // 异步等待投票结果
+      const isApproved = await waitForVoteApproval(requestId);
+      if (isApproved) {
+        setVoteStatus({
+          requestId,
+          result: 1,
+          message: '投票已通过，可以上架商品',
+        });
+      } else {
+        setVoteStatus({
+          requestId,
+          result: 2,
+          message: `投票（ID: ${requestId}）未通过，请联系管理员`,
+        });
+      }
     } catch (error) {
-      console.error('批量出售失败:', error);
-      toast.error('批量出售失败');
+      console.error('创建投票失败:', error);
+      toast.error(`创建投票失败: ${error.message || '未知错误'}`);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  // 处理单个 NFT 出售
-  const handleSingleSell = async () => {
+  // 处理上架 NFT
+  const handleSellNFT = async () => {
     if (!address || !window.ethereum || !selectedNFTForSale) {
       toast.error('请连接 MetaMask');
       return;
@@ -129,13 +202,16 @@ export default function SellNFTPage() {
         return;
       }
 
+      setIsProcessing(true);
       await nftClient.sellNFT(address, selectedNFTForSale.id, sellPrice);
-      toast.success(`已将 ${selectedNFTForSale.title} 上架出售`);
+      toast.success(`NFT ${selectedNFTForSale.title} 已上架出售`);
       setSingleSellDialogOpen(false);
-      await fetchOwnedNFTs(); // 刷新 NFT 列表
+      await fetchOwnedNFTs();
     } catch (error) {
-      console.error('出售失败:', error);
-      toast.error('出售失败');
+      console.error('上架失败:', error);
+      toast.error(`上架失败: ${error.message || '未知错误'}`);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -158,7 +234,7 @@ export default function SellNFTPage() {
       const valueB = b.title;
       return sortDirection === 'asc' ? valueA.localeCompare(valueB) : valueB.localeCompare(valueA);
     } else if (sortField === 'creator') {
-      const valueA = a.owner; // 使用 owner 作为 creator
+      const valueA = a.owner;
       const valueB = b.owner;
       return sortDirection === 'asc' ? valueA.localeCompare(valueB) : valueB.localeCompare(valueA);
     }
@@ -181,15 +257,7 @@ export default function SellNFTPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold">出售 NFT</h1>
-          <p className="text-muted-foreground">选择并出售您的二手商品</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={toggleSelectAll}>
-            {ownedNFTs.every((nft) => nft.selected) ? '取消全选' : '全选'}
-          </Button>
-          <Button disabled={selectedCount === 0} onClick={() => setBatchSellDialogOpen(true)}>
-            批量出售 ({selectedCount})
-          </Button>
+          <p className="text-muted-foreground">选择并出售您的二手商品（需通过社区投票）</p>
         </div>
       </div>
 
@@ -202,12 +270,6 @@ export default function SellNFTPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableCell className="w-[50px]">
-                  <Checkbox
-                    checked={ownedNFTs.every((nft) => nft.selected)}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </TableCell>
                 <TableCell className="w-[80px]">预览</TableCell>
                 <TableCell className="cursor-pointer" onClick={() => handleSort('title')}>
                   <div className="flex items-center">
@@ -226,13 +288,7 @@ export default function SellNFTPage() {
             </TableHeader>
             <TableBody>
               {sortedNFTs.map((nft) => (
-                <TableRow key={nft.id} className={nft.selected ? 'bg-primary/5' : ''}>
-                  <TableCell>
-                    <Checkbox
-                      checked={nft.selected}
-                      onCheckedChange={() => toggleSelectNFT(nft.id)}
-                    />
-                  </TableCell>
+                <TableRow key={nft.id}>
                   <TableCell>
                     <div className="h-10 w-10 rounded-md overflow-hidden">
                       <Image
@@ -255,7 +311,12 @@ export default function SellNFTPage() {
                   </TableCell>
                   <TableCell>{nft.owner.substring(0, 6)}...{nft.owner.substring(nft.owner.length - 4)}</TableCell>
                   <TableCell className="flex justify-start pl-1">
-                    <Button variant="outline" size="sm" onClick={() => openSingleSellDialog(nft)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openSingleSellDialog(nft)}
+                      disabled={isProcessing}
+                    >
                       出售
                     </Button>
                   </TableCell>
@@ -279,54 +340,14 @@ export default function SellNFTPage() {
         </div>
       )}
 
-      {/* 批量出售对话框 */}
-      <Dialog open={batchSellDialogOpen} onOpenChange={setBatchSellDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>批量出售 {selectedCount} 个 NFT</DialogTitle>
-            <DialogDescription>设置您希望出售这些数字商品的价格（以 cUSDT 为单位）</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="batch-price">出售价格 (cUSDT)</Label>
-              <div className="relative">
-                <Input
-                  id="batch-price"
-                  placeholder="输入价格"
-                  value={sellPrice}
-                  onChange={(e) => setSellPrice(e.target.value)}
-                />
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground">
-                  cUSDT
-                </div>
-              </div>
-            </div>
-
-            <Alert variant="outline">
-              <Info className="h-4 w-4" />
-              <AlertTitle>批量出售提示</AlertTitle>
-              <AlertDescription>
-                批量出售将为所有选中的 NFT 设置相同的价格。如需为每个 NFT 设置不同价格，请单独出售。
-              </AlertDescription>
-            </Alert>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBatchSellDialogOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={handleBatchSell}>确认出售</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* 单个 NFT 出售对话框 */}
       <Dialog open={singleSellDialogOpen} onOpenChange={setSingleSellDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>出售 {selectedNFTForSale?.title}</DialogTitle>
-            <DialogDescription>设置您希望出售此数字商品的价格（以 cUSDT 为单位）</DialogDescription>
+            <DialogDescription>
+              {voteStatus ? voteStatus.message : '检查投票状态中...'}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
@@ -338,6 +359,7 @@ export default function SellNFTPage() {
                   placeholder="输入价格"
                   value={sellPrice}
                   onChange={(e) => setSellPrice(e.target.value)}
+                  disabled={isProcessing || voteStatus?.result !== 1}
                 />
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground">
                   cUSDT
@@ -346,19 +368,31 @@ export default function SellNFTPage() {
             </div>
 
             <Alert variant="outline">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>市场提示</AlertTitle>
+              <Info className="h-4 w-4" />
+              <AlertTitle>投票和上架提示</AlertTitle>
               <AlertDescription>
-                设置合理的价格可以提高出售成功率。您可以参考市场上类似商品的价格来定价。
+                NFT 需通过社区投票（3 人投票，至少 2 人赞同）才能上架。{voteStatus?.result === 0 ? '投票正在进行中，请在验证大厅查看进度。' : ''}
               </AlertDescription>
             </Alert>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSingleSellDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setSingleSellDialogOpen(false)} disabled={isProcessing}>
               取消
             </Button>
-            <Button onClick={handleSingleSell}>确认出售</Button>
+            {voteStatus?.result === 1 ? (
+              <Button onClick={handleSellNFT} disabled={isProcessing}>
+                {isProcessing ? '处理中...' : '上架'}
+              </Button>
+            ) : voteStatus?.result === -1 ? (
+              <Button onClick={handleCreateVote} disabled={isProcessing}>
+                {isProcessing ? '处理中...' : '创建投票'}
+              </Button>
+            ) : (
+              <Button disabled>
+                {voteStatus?.result === 0 ? '投票进行中' : '投票未通过'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

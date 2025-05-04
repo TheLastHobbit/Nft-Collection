@@ -12,9 +12,9 @@ import { WalletProvider } from '@/components/wallet-provider'
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "NFT藏品交易平台",
-  description: "发现、收集与交易稀有数字藏品的专业NFT交易平台",
-    generator: 'v0.dev'
+  title: "二手商品交易平台",
+  description: "专业二手商品NFT交易平台",
+    generator: 'CUIT'
 }
 
 export default function RootLayout({

@@ -21,7 +21,7 @@ interface WalletState {
 
 const routes = [
   { name: "申请创建商品NFT", path: "/create" },
-  { name: "实物验证大厅", path: "/arbitration" },
+  { name: "实物验证大厅", path: "/verification" },
   { name: "出售NFT", path: "/sell" },
   { name: "仲裁大厅", path: "/arbitration" },
   { name: "我的商品", path: "/my-collections" },
