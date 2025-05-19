@@ -9,6 +9,17 @@ import * as marketClient from '@/utils/market.client';
 import { toast } from 'sonner';
 import { useWalletContext } from '@/components/wallet-provider';
 import { ethers } from 'ethers';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 // 定义 NFT 接口，与其他页面一致
 interface NFT {
@@ -203,7 +214,7 @@ export default function Home() {
             <div className="relative p-6 md:p-8 text-center">
               <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">开始出售您的二手商品</h2>
               <p className="text-white/90 mb-6 max-w-2xl mx-auto">
-              加入专业的二手商品NFT交易平台
+                加入专业的二手商品NFT交易平台
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link href="/create">
@@ -227,16 +238,18 @@ function MarketplaceNFTGrid({
   page,
   setPage,
   address,
-  setNfts, // 添加 setNfts 到 props
+  setNfts,
 }: {
   nfts: NFT[];
   isLoading: boolean;
   page: number;
   setPage: React.Dispatch<React.SetStateAction<number>>;
   address: string | undefined;
-  setNfts: React.Dispatch<React.SetStateAction<NFT[]>>; // 定义类型
+  setNfts: React.Dispatch<React.SetStateAction<NFT[]>>;
 }) {
   const itemsPerPage = 12; // 每页 12 个 NFT（4x3 网格）
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
 
   // 处理购买 NFT
   const handleBuy = async (tokenId: number) => {
@@ -257,79 +270,149 @@ function MarketplaceNFTGrid({
           nft.seller !== ethers.constants.AddressZero &&
           nft.price > 0
       );
-      setNfts(validNfts); // 使用传递的 setNfts
+      setNfts(validNfts);
+      return txHash;
     } catch (error) {
       console.error(`购买 NFT 失败 (tokenId: ${tokenId}, 地址: ${address}):`, error);
       toast.error('购买 NFT 失败，请稍后重试');
+      throw error;
     }
+  };
+
+  // 处理创建纠纷
+  const handleCreateDispute = async (tokenId: number) => {
+    if (!address || !window.ethereum) {
+      toast.error('请连接 MetaMask 钱包');
+      return;
+    }
+
+    try {
+      const txHash = await marketClient.createDispute(tokenId);
+      toast.success(`纠纷创建成功，交易哈希: ${txHash}`);
+    } catch (error) {
+      console.error(`创建纠纷失败 (tokenId: ${tokenId}, 地址: ${address}):`, error);
+      toast.error('创建纠纷失败，请稍后重试');
+    }
+  };
+
+  // 打开对话框并设置 tokenId
+  const openBuyDialog = (tokenId: number) => {
+    setSelectedTokenId(tokenId);
+    setOpenDialog(true);
   };
 
   // 分页显示 NFT
   const paginatedNfts = nfts.slice(0, page * itemsPerPage);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-      {isLoading ? (
-        <div className="col-span-full text-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-          <p className="mt-2">加载中...</p>
-        </div>
-      ) : nfts.length === 0 ? (
-        <div className="col-span-full text-center py-8">
-          <p className="text-muted-foreground">暂无上架的二手商品NFT</p>
-        </div>
-      ) : (
-        paginatedNfts.map((nft) => (
-          <Link href={`/nft/${nft.id}`} key={nft.id}>
-            <div className="overflow-hidden rounded-lg border border-border hover:border-primary/50 hover:shadow-md transition-all">
-              <div className="relative">
-                <Image
-                  src={nft.image || '/placeholder.png'}
-                  alt={nft.title || 'NFT'}
-                  width={400}
-                  height={400}
-                  className="aspect-square object-cover w-full"
-                  onError={(e) => {
-                    console.error('图片加载失败:', nft.image);
-                    e.currentTarget.src = '/placeholder.png';
-                  }}
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="h-6 w-6 rounded-full bg-primary"></div>
-                  <span className="text-xs text-muted-foreground">
-                    @{nft.seller ? truncateAddress(nft.seller) : '未知作者'}
-                  </span>
-                </div>
-                <h3 className="font-semibold truncate">{nft.title || '无标题'}</h3>
-                <div className="flex justify-between items-center mt-2">
-                  <div>
-                    <p className="text-xs text-muted-foreground">价格</p>
-                    <p className="font-medium">{nft.price ? `${nft.price.toFixed(2)} cUSDT` : '未知'}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={(e) => {
-                      e.preventDefault(); // 防止点击购买触发 Link
-                      handleBuy(nft.id);
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {isLoading ? (
+          <div className="col-span-full text-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+            <p className="mt-2">加载中...</p>
+          </div>
+        ) : nfts.length === 0 ? (
+          <div className="col-span-full text-center py-8">
+            <p className="text-muted-foreground">暂无上架的二手商品NFT</p>
+          </div>
+        ) : (
+          paginatedNfts.map((nft) => (
+            <Link href={`/nft/${nft.id}`} key={nft.id}>
+              <div className="overflow-hidden rounded-lg border border-border hover:border-primary/50 hover:shadow-md transition-all">
+                <div className="relative">
+                  <Image
+                    src={nft.image || '/placeholder.png'}
+                    alt={nft.title || 'NFT'}
+                    width={400}
+                    height={400}
+                    className="aspect-square object-cover w-full"
+                    onError={(e) => {
+                      console.error('图片加载失败:', nft.image);
+                      e.currentTarget.src = '/placeholder.png';
                     }}
-                    disabled={
-                      !address ||
-                      !ethers.utils.isAddress(nft.seller) ||
-                      nft.seller.toLowerCase() === address?.toLowerCase()
-                    }
-                  >
-                    购买
-                  </Button>
+                  />
+                </div>
+                <div className="p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-6 w-6 rounded-full bg-primary"></div>
+                    <span className="text-xs text-muted-foreground">
+                      @{nft.seller ? truncateAddress(nft.seller) : '未知作者'}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold truncate">{nft.title || '无标题'}</h3>
+                  <div className="flex justify-between items-center mt-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">价格</p>
+                      <p className="font-medium">{nft.price ? `${nft.price.toFixed(2)} cUSDT` : '未知'}</p>
+                    </div>
+                    <AlertDialog open={openDialog && selectedTokenId === nft.id} onOpenChange={(open) => setOpenDialog(open)}>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.preventDefault(); // 防止点击触发 Link
+                            openBuyDialog(nft.id);
+                          }}
+                          disabled={
+                            !address ||
+                            !ethers.utils.isAddress(nft.seller) ||
+                            nft.seller.toLowerCase() === address?.toLowerCase()
+                          }
+                        >
+                          购买
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>确认购买</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            您的资金将被锁定在合约中。如果要进一步完成交易，需创建一个纠纷请求。
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>取消</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async () => {
+                              if (selectedTokenId !== null) {
+                                try {
+                                  await handleBuy(selectedTokenId);
+                                } catch (error) {
+                                  // 错误已在 handleBuy 中处理
+                                }
+                              }
+                            }}
+                          >
+                            确认购买
+                          </AlertDialogAction>
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              if (selectedTokenId !== null) {
+                                try {
+                                  await handleBuy(selectedTokenId);
+                                  await handleCreateDispute(selectedTokenId);
+                                } catch (error) {
+                                  // 错误已在 handleCreateDispute 中处理
+                                }
+                              }
+                              setOpenDialog(false);
+                            }}
+                          >
+                            创建纠纷
+                          </Button>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
-        ))
-      )}
-    </div>
+            </Link>
+          ))
+        )}
+      </div>
+    </>
   );
 }
 

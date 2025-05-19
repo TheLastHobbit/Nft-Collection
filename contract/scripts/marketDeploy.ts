@@ -10,8 +10,10 @@ async function main() {
   const Market = await hre.ethers.getContractFactory("Market");
   const market = await Market.deploy(cUSDTAddress, myNFTAddress);
 
-  await market.deployed();
-  console.log("Market deployed to:", market.address);
+  await market.waitForDeployment();
+  const marketAddress = await market.getAddress();
+  console.log("Market deployed to:", marketAddress);
+
 }
 
 main()

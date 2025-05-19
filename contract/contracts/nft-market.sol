@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 /**
- * @title NFTMarket 合约，支持锁定资金、纠纷解决和查询所有纠纷
+ * @title NFTMarket 合约，支持锁定资金、纠纷解决、确认交易和查询所有纠纷
  */
 contract Market is IERC721Receiver {
     IERC20 public erc20;
@@ -32,6 +32,14 @@ contract Market is IERC721Receiver {
         uint256 timestamp;
         DisputeResult result;
         uint256 voteRequestId; // 关联投票请求
+        uint256 tokenId; // 关联的 tokenId
+    }
+
+    // 待确认交易结构体
+    struct PendingTransaction {
+        address buyer;
+        address seller;
+        uint256 amount;
     }
 
     // 纠纷投票请求结构体
@@ -57,6 +65,9 @@ contract Market is IERC721Receiver {
     mapping(uint256 => uint256) public disputeToRequestId; // tokenId 到投票请求 ID
     mapping(uint256 => DisputeVoteRequest) public disputeVoteRequests; // 投票请求 ID 到投票请求
     mapping(uint256 => mapping(address => bool)) public hasDisputeVoted; // 投票请求 ID 到投票者是否已投票
+    mapping(uint256 => mapping(address => bool)) public transactionConfirmations; // tokenId 到确认状态（买家/卖家）
+    mapping(uint256 => bool) public transactionCompleted; // tokenId 到交易完成状态
+    mapping(uint256 => PendingTransaction) public pendingTransactions; // tokenId 到待确认交易
     uint256 public disputeVoteRequestCounter; // 纠纷投票请求计数器
     uint256[] public disputeTokenIds; // 存储所有纠纷的 tokenId
 
@@ -68,6 +79,8 @@ contract Market is IERC721Receiver {
     event DisputeVoteRequestCreated(uint256 indexed requestId, uint256 tokenId, address requester);
     event DisputeVoted(uint256 indexed requestId, address voter, bool approveBuyer);
     event DisputeVoteFinalized(uint256 indexed requestId, DisputeResult result);
+    event TransactionConfirmed(uint256 indexed tokenId, address confirmer);
+    event TransactionCompleted(uint256 indexed tokenId, address buyer, address seller, uint256 amount);
 
     constructor(IERC20 _erc20, IERC721 _erc721) {
         require(address(_erc20) != address(0), unicode"Market: IERC20 合约地址不能为空");
@@ -99,7 +112,8 @@ contract Market is IERC721Receiver {
             uint256 amount,
             uint256 timestamp,
             DisputeResult result,
-            uint256 voteRequestId
+            uint256 voteRequestId,
+            uint256 tokenId
         ) 
     {
         Dispute storage dispute = disputes[_tokenId];
@@ -109,11 +123,15 @@ contract Market is IERC721Receiver {
             dispute.amount,
             dispute.timestamp,
             dispute.result,
-            dispute.voteRequestId
+            dispute.voteRequestId,
+            dispute.tokenId
         );
     }
 
-    // 查询所有纠纷
+    /**
+     * @notice 查询所有纠纷
+     * @return Dispute[] 包含所有纠纷的数组，每个纠纷包含 seller, buyer, amount, timestamp, result, voteRequestId, tokenId
+     */
     function getAllDisputes() external view returns (Dispute[] memory) {
         Dispute[] memory allDisputes = new Dispute[](disputeTokenIds.length);
         for (uint256 i = 0; i < disputeTokenIds.length; i++) {
@@ -122,10 +140,20 @@ contract Market is IERC721Receiver {
         return allDisputes;
     }
 
-    // 购买 NFT，锁定资金
+    // 查询投票详情
+    function getDisputeVoteDetails(uint256 requestId) 
+        external 
+        view 
+        returns (DisputeVoteRequest memory) 
+    {
+        require(requestId > 0 && requestId <= disputeVoteRequestCounter, unicode"无效的请求 ID");
+        return disputeVoteRequests[requestId];
+    }
+
+    // 购买 NFT，锁定资金并下架
     function buy(uint256 _tokenId) external {
         require(isListed(_tokenId), unicode"Market: 该 tokenId 未上架");
-        require(disputes[_tokenId].buyer == address(0), unicode"Market: 该 token 已存在纠纷");
+        require(!transactionCompleted[_tokenId], unicode"Market: 交易已完成");
 
         address seller = orderOfId[_tokenId].seller;
         address buyer = msg.sender;
@@ -134,38 +162,80 @@ contract Market is IERC721Receiver {
         // 锁定资金到合约
         require(erc20.transferFrom(buyer, address(this), price), unicode"Market: 向合约转账失败");
 
-        // 创建纠纷记录
-        disputes[_tokenId] = Dispute({
-            seller: seller,
+        // 记录待确认交易
+        pendingTransactions[_tokenId] = PendingTransaction({
             buyer: buyer,
-            amount: price,
-            timestamp: block.timestamp,
-            result: DisputeResult.Pending,
-            voteRequestId: 0
+            seller: seller,
+            amount: price
         });
 
-        // 添加到纠纷 tokenId 列表
-        disputeTokenIds.push(_tokenId);
+        // 下架 NFT
+        removeListing(_tokenId);
 
         emit Deal(buyer, seller, _tokenId, price);
     }
 
+    // 双方确认交易
+    function confirmTransaction(uint256 _tokenId) external {
+        require(pendingTransactions[_tokenId].buyer != address(0), unicode"Market: 交易不存在");
+        require(!transactionCompleted[_tokenId], unicode"Market: 交易已完成");
+        require(disputes[_tokenId].buyer == address(0), unicode"Market: 存在纠纷，无法确认交易");
+        require(msg.sender == pendingTransactions[_tokenId].seller || msg.sender == pendingTransactions[_tokenId].buyer, unicode"Market: 仅买家或卖家可确认");
+
+        address seller = pendingTransactions[_tokenId].seller;
+        address buyer = pendingTransactions[_tokenId].buyer;
+        uint256 amount = pendingTransactions[_tokenId].amount;
+
+        // 记录确认
+        transactionConfirmations[_tokenId][msg.sender] = true;
+        emit TransactionConfirmed(_tokenId, msg.sender);
+
+        // 检查双方是否都确认
+        if (transactionConfirmations[_tokenId][seller] && transactionConfirmations[_tokenId][buyer]) {
+            // 执行交易
+            require(erc20.transfer(seller, amount), unicode"Market: 向卖家转账失败");
+            erc721.safeTransferFrom(address(this), buyer, _tokenId);
+            transactionCompleted[_tokenId] = true;
+            delete pendingTransactions[_tokenId];
+
+            emit TransactionCompleted(_tokenId, buyer, seller, amount);
+        }
+    }
+
     // 创建纠纷并发起投票
     function createDispute(uint256 _tokenId) external {
-        require(disputes[_tokenId].buyer != address(0), unicode"Market: 该 token 无购买记录");
-        require(disputes[_tokenId].result == DisputeResult.Pending, unicode"Market: 纠纷已解决");
-        require(msg.sender == disputes[_tokenId].buyer || msg.sender == disputes[_tokenId].seller, unicode"Market: 仅买家或卖家可创建纠纷");
-        require(disputeToRequestId[_tokenId] == 0, unicode"Market: 纠纷投票请求已存在");
+        require(pendingTransactions[_tokenId].buyer != address(0), unicode"Market: 交易不存在");
+        require(!transactionCompleted[_tokenId], unicode"Market: 交易已完成");
+        require(disputes[_tokenId].buyer == address(0), unicode"Market: 纠纷已存在");
+        require(msg.sender == pendingTransactions[_tokenId].seller || msg.sender == pendingTransactions[_tokenId].buyer, unicode"Market: 仅买家或卖家可创建纠纷");
 
+        address seller = pendingTransactions[_tokenId].seller;
+        address buyer = pendingTransactions[_tokenId].buyer;
+        uint256 amount = pendingTransactions[_tokenId].amount;
+
+        // 递增投票请求计数器
         disputeVoteRequestCounter++;
+        // 创建投票请求
         DisputeVoteRequest storage newRequest = disputeVoteRequests[disputeVoteRequestCounter];
         newRequest.tokenId = _tokenId;
         newRequest.requester = msg.sender;
         newRequest.result = DisputeResult.Pending;
 
+        // 创建纠纷记录
+        disputes[_tokenId] = Dispute({
+            seller: seller,
+            buyer: buyer,
+            amount: amount,
+            timestamp: block.timestamp,
+            result: DisputeResult.Pending,
+            voteRequestId: disputeVoteRequestCounter, // 设置为新的 voteRequestId
+            tokenId: _tokenId
+        });
+        disputeTokenIds.push(_tokenId);
+
         disputeToRequestId[_tokenId] = disputeVoteRequestCounter;
 
-        emit DisputeCreated(_tokenId, disputes[_tokenId].seller, disputes[_tokenId].buyer, disputes[_tokenId].amount);
+        emit DisputeCreated(_tokenId, seller, buyer, amount);
         emit DisputeVoteRequestCreated(disputeVoteRequestCounter, _tokenId, msg.sender);
     }
 
@@ -228,7 +298,6 @@ contract Market is IERC721Receiver {
     function executeDisputeTransaction(uint256 _tokenId) external {
         require(disputes[_tokenId].buyer != address(0), unicode"Market: 该 token 无纠纷记录");
         require(disputes[_tokenId].result != DisputeResult.Pending, unicode"Market: 纠纷尚未解决");
-        require(isListed(_tokenId), unicode"Market: 该 tokenId 未上架");
 
         address seller = disputes[_tokenId].seller;
         address buyer = disputes[_tokenId].buyer;
@@ -238,17 +307,17 @@ contract Market is IERC721Receiver {
             // 退款给买家，NFT 退回卖家
             require(erc20.transfer(buyer, amount), unicode"Market: 退款给买家失败");
             erc721.safeTransferFrom(address(this), seller, _tokenId);
-            removeListing(_tokenId);
         } else {
             // 金额转给卖家，NFT 转给买家
             require(erc20.transfer(seller, amount), unicode"Market: 向卖家转账失败");
             erc721.safeTransferFrom(address(this), buyer, _tokenId);
-            removeListing(_tokenId);
         }
 
         // 清除纠纷记录
         delete disputes[_tokenId];
         delete disputeToRequestId[_tokenId];
+        delete pendingTransactions[_tokenId];
+        transactionCompleted[_tokenId] = true;
 
         // 从 disputeTokenIds 移除
         for (uint256 i = 0; i < disputeTokenIds.length; i++) {

@@ -1,5 +1,5 @@
 'use client';
-
+import React from 'react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -11,12 +11,15 @@ import { useWalletContext } from '@/components/wallet-provider';
 import * as voteClient from '@/utils/vote.client';
 import { toast } from 'sonner';
 
-export default function VerificationDetailPage({ params }: { params: { id: string } }) {
+export default function VerificationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { address } = useWalletContext();
   const [item, setItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userVerification, setUserVerification] = useState<string | null>(null);
   const [verificationSubmitted, setVerificationSubmitted] = useState(false);
+
+  // 解包 params
+  const resolvedParams = React.use(params);
 
   // 加载投票数据
   const fetchVoteData = async () => {
@@ -27,7 +30,7 @@ export default function VerificationDetailPage({ params }: { params: { id: strin
 
     setLoading(true);
     try {
-      const requestId = Number(params.id);
+      const requestId = Number(resolvedParams.id);
       const status = await voteClient.getVoteStatus(requestId);
 
       const itemData = {
@@ -60,7 +63,7 @@ export default function VerificationDetailPage({ params }: { params: { id: strin
 
   useEffect(() => {
     fetchVoteData();
-  }, [address, params.id]);
+  }, [address, resolvedParams.id]);
 
   // 处理验证提交
   const handleVerification = async (approve: boolean) => {
@@ -73,11 +76,11 @@ export default function VerificationDetailPage({ params }: { params: { id: strin
 
     try {
       setVerificationSubmitted(true); // 防止重复提交
-      const txHash = await voteClient.vote(Number(params.id), approve);
+      const txHash = await voteClient.vote(Number(resolvedParams.id), approve);
       toast.success(`投票已提交，交易哈希: ${txHash}`);
 
       // 更新投票状态
-      const status = await voteClient.getVoteStatus(Number(params.id));
+      const status = await voteClient.getVoteStatus(Number(resolvedParams.id));
       setItem((prev: any) => ({
         ...prev,
         status: status.result === 0 ? '待验证' : status.result === 1 ? '验证通过' : '验证失败',

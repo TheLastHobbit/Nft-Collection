@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -8,52 +8,75 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, AlertTriangle, Clock, Users } from "lucide-react"
+import * as marketClient from "@/utils/market.client"
+import * as nftClient from "@/utils/nft.client"
+import { toast } from "sonner"
+import { useWalletContext } from "@/components/wallet-provider"
 
 export default function ArbitrationPage() {
-  // 模拟争议列表数据
-  const [disputes, setDisputes] = useState([
-    {
-      id: 1,
-      nftTitle: "二手苹果充电宝",
-      nftImage: "/1.png",
-      seller: "0x01f93051A949971c812E57b9802B7749f53534B6",
-      buyer: "0xb5B60f020d741069C28b84EeA3Ad8D08385eD4D3",
-      amount: "2.5 ETH",
-      disputeDate: "2025-04-20",
-      status: "进行中",
-      votes: { seller: 12, buyer: 8 },
-      requiredVotes: 25,
-      description: "买家声称充电宝功能损坏与描述不符，卖家坚持功能正常。",
-      timeLeft: "2天12小时",
-    },
-
-
-    {
-      id: 4,
-      nftTitle: "二手充电器",
-      nftImage: "/2.png",
-      seller: "0x01f93051A949971c812E57b9802B7749f53534B6",
-      buyer: "0xb5B60f020d741069C28b84EeA3Ad8D08385eD4D3",
-      amount: "1.4 ETH",
-      disputeDate: "2024-04-12",
-      status: "已解决",
-      votes: { seller: 22, buyer: 11 },
-      requiredVotes: 33,
-      description: "买家声称商品是假冒产品，但卖家出示购买记录显示其为正品。仲裁结果支持卖家。",
-      timeLeft: "已结束",
-    },
-  ])
-
-  // 筛选状态
+  const { address } = useWalletContext()
+  const [disputes, setDisputes] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
 
+  // 获取合约中的纠纷列表
+  const fetchDisputes = async () => {
+    setLoading(true)
+    try {
+      const fetchedDisputes = await marketClient.getAllDisputes()
+      console.log("fetchedDisputes:",fetchedDisputes)
+      const disputesWithDetails = await Promise.all(
+        fetchedDisputes.map(async (dispute: any) => {
+          const requestId = dispute.voteRequestId
+          const voteStatus = requestId > 0 ? await marketClient.getDisputeVoteDetails(requestId) : null
+          console.log("dispute.tokenId:",dispute.tokenId)
+          const nftMetadata = await nftClient.getMetadata(dispute.tokenId)
+          return {
+            id: dispute.tokenId,
+            nftTitle: nftMetadata.title || "未知 NFT",
+            nftImage: nftMetadata.imageURL || "/placeholder.png",
+            seller: dispute.seller,
+            buyer: dispute.buyer,
+            amount: `${dispute.amount.toFixed(2)} cUSDT`,
+            disputeDate: new Date(dispute.timestamp * 1000).toLocaleDateString(),
+            status: dispute.result === 0 ? "进行中" : dispute.result === 1 ? "买家胜" : "卖家胜",
+            votes: voteStatus
+              ? { seller: voteStatus.approveBuyerCount, buyer: voteStatus.voteCount - voteStatus.approveBuyerCount }
+              : { seller: 0, buyer: 0 },
+            requiredVotes: 3, // 假设需要 3 票
+            description: "争议涉及 NFT 交易，双方对商品描述一致性有分歧。",
+            timeLeft: dispute.result === 0 ? calculateTimeLeft(dispute.timestamp) : "已结束",
+          }
+        })
+      )
+      setDisputes(disputesWithDetails)
+    } catch (error) {
+      console.error("获取纠纷失败:", error)
+      toast.error("获取纠纷失败，请稍后重试")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 计算剩余时间
+  const calculateTimeLeft = (timestamp: number) => {
+    const disputeEndTime = timestamp * 1000 + 7 * 24 * 60 * 60 * 1000 // 假设 7 天截止
+    const now = Date.now()
+    const timeLeftMs = disputeEndTime - now
+    if (timeLeftMs <= 0) return "已结束"
+    const days = Math.floor(timeLeftMs / (24 * 60 * 60 * 1000))
+    const hours = Math.floor((timeLeftMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000))
+    return `${days}天${hours}小时`
+  }
+
+  useEffect(() => {
+    fetchDisputes()
+  }, [address])
+
   // 筛选争议
   const filteredDisputes = disputes.filter((dispute) => {
-    // 状态筛选
     if (statusFilter !== "all" && dispute.status !== statusFilter) return false
-
-    // 搜索筛选
     if (
       searchQuery &&
       !dispute.nftTitle.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -62,7 +85,6 @@ export default function ArbitrationPage() {
     ) {
       return false
     }
-
     return true
   })
 
@@ -75,7 +97,14 @@ export default function ArbitrationPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="搜索 NFT 标题或地址..."
+              className="pl-8 w-[200px] md:w-[250px]"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[120px]">
@@ -84,29 +113,37 @@ export default function ArbitrationPage() {
             <SelectContent>
               <SelectItem value="all">全部</SelectItem>
               <SelectItem value="进行中">进行中</SelectItem>
-              <SelectItem value="已解决">已解决</SelectItem>
+              <SelectItem value="买家胜">买家胜</SelectItem>
+              <SelectItem value="卖家胜">卖家胜</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {filteredDisputes.length > 0 ? (
+      {loading ? (
+        <div className="text-center py-12">
+          <p>加载中...</p>
+        </div>
+      ) : filteredDisputes.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredDisputes.map((dispute) => (
             <Link href={`/arbitration/${dispute.id}`} key={dispute.id}>
               <Card className="overflow-hidden hover:border-primary/50 hover:shadow-md h-full">
                 <div className="relative">
                   <Image
-                    src={dispute.nftImage || "/placeholder.svg"}
+                    src={dispute.nftImage}
                     alt={dispute.nftTitle}
                     width={400}
                     height={400}
                     className="aspect-square object-cover w-full"
+                   
                   />
                   <Badge
                     className={`absolute top-2 right-2 ${
                       dispute.status === "进行中"
                         ? "bg-amber-500/90 hover:bg-amber-500/90"
+                        : dispute.status === "买家胜"
+                        ? "bg-blue-500/90 hover:bg-blue-500/90"
                         : "bg-green-500/90 hover:bg-green-500/90"
                     }`}
                   >
@@ -118,11 +155,11 @@ export default function ArbitrationPage() {
                   <div className="mt-2 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">卖家:</span>
-                      <span>{dispute.seller}</span>
+                      <span>{truncateAddress(dispute.seller)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">买家:</span>
-                      <span>{dispute.buyer}</span>
+                      <span>{truncateAddress(dispute.buyer)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">金额:</span>
@@ -156,4 +193,9 @@ export default function ArbitrationPage() {
       )}
     </div>
   )
+}
+
+// 截断地址显示
+function truncateAddress(address: string) {
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`
 }

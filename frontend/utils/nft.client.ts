@@ -5,7 +5,7 @@ import cUSDTABI from '../contracts/cUSDT.json';
 import axios from 'axios';
 
 const myNFTAddress = '0x2C3a706039846849107c17cDFD22F6BbC753d764';
-const marketAddress = '0x7d18D936F6a734AA60890f23313FaF2012B65377';
+const marketAddress = '0x5B27ceDe277D7d5aE4bAd94568161dd70d4dA8E1';
 const cUSDTAddress = '0x19872bECF513D7064ddDd33638E1CC097373af1c'; // 替换为实际 cUSDT 地址
 const pinataGateway = 'https://gateway.pinata.cloud';
 

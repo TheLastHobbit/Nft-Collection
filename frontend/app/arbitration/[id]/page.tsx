@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -10,88 +10,166 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertTriangle, Clock, Users, ThumbsUp, ArrowLeft, CheckCircle2, XCircle, Info } from "lucide-react"
+import * as marketClient from "@/utils/market.client"
+import * as nftClient from "@/utils/nft.client"
+import { toast } from "sonner"
+import { useWalletContext } from "@/components/wallet-provider"
+import { ethers } from "ethers"
 
-export default function ArbitrationDetailPage({ params }: { params: { id: string } }) {
-  // 模拟争议详情数据
+export default function ArbitrationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { address } = useWalletContext()
   const [dispute, setDispute] = useState<any>(null)
+  const [tokenid, setTokenid] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [userVote, setUserVote] = useState<string | null>(null)
   const [voteSubmitted, setVoteSubmitted] = useState(false)
+  const [confirmationSubmitted, setConfirmationSubmitted] = useState(false)
+  const [voteDetails, setVoteDetails] = useState<Array<{ voter: string; voted: string }>>([])
+  const [confirming, setConfirming] = useState(false)
+  const [executing, setExecuting] = useState(false)
+  const [isDisputeExecuted, setIsDisputeExecuted] = useState(false)
 
-  useEffect(() => {
-    // 模拟加载数据
-    setTimeout(() => {
-      const disputeData = {
-        id: Number.parseInt(params.id),
-        nftTitle: "二手苹果充电宝",
-        nftImage: "/1.png",
+  // 解包 params
+  const resolvedParams = React.use(params)
+
+  // 加载纠纷详情
+  const fetchDispute = async () => {
+    if (!address) {
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    try {
+      const tokenId = Number(resolvedParams.id)
+      console.log("tokenId:", tokenId)
+      setTokenid(tokenId)
+      const disputeData = await marketClient.getDispute(tokenId)
+      console.log("disputeData:", disputeData)
+
+      // 检查争议是否已执行（buyer 为 address(0) 表示已清除）
+      const isExecuted = disputeData.buyer === ethers.constants.AddressZero
+      setIsDisputeExecuted(isExecuted)
+
+      if (isExecuted) {
+        setDispute(null)
+        return
+      }
+
+      const requestId = disputeData.voteRequestId
+      console.log("requestId:", requestId)
+      const voteStatus = requestId > 0 ? await marketClient.getDisputeVoteDetails(requestId) : null
+      const nftMetadata = await nftClient.getMetadata(tokenId)
+      const hasVoted = requestId > 0 ? await marketClient.hasDisputeVoted(requestId, address) : false
+      const transactionConfirmed = await marketClient.getTransactionConfirmations(tokenId, address)
+
+      const disputeDetails = {
+        id: tokenId,
+        nftTitle: nftMetadata.title || "未知 NFT",
+        nftImage: nftMetadata.imageURL || "/placeholder.png",
         seller: {
-          username: "0x01f93051A949971c812E57b9802B7749f53534B6",
+          username: truncateAddress(disputeData.seller),
           avatar: "/placeholder.svg?height=100&width=100",
-          argument:
-            "我提供的充电宝完全符合描述，功能全部正常。买家在购买前已经查看了完整的预览和详细信息，并同意了交易条款。这是一个有效的交易，应该维持原状。",
+          argument: "卖家坚持商品符合描述，功能正常，交易应继续。",
         },
         buyer: {
-          username: "0xb5B60f020d741069C28b84EeA3Ad8D08385eD4D3",
+          username: truncateAddress(disputeData.buyer),
           avatar: "/placeholder.svg?height=100&width=100",
-          argument:
-            "我购买的二手充电宝与卖家描述的有重大差异。元数据中承诺的功能完好并不存在，这严重影响了二手商品的价值。我要求退款或者卖家提供符合原始描述的二手商品。",
+          argument: "买家认为商品与描述不符，要求退款或更换。",
         },
         transaction: {
-          txHash: "0x1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t",
-          amount: "2.5 ETH",
-          date: "2025-04-15 14:30:22",
-          blockNumber: "18245367",
+          txHash: "未知",
+          amount: `${disputeData.amount.toFixed(2)} cUSDT`,
+          date: new Date(disputeData.timestamp * 1000).toLocaleString(),
+          blockNumber: "未知",
         },
-        disputeDate: "2025-04-20",
-        status: "进行中",
-        votes: { seller: 12, buyer: 8 },
-        requiredVotes: 25,
-        description: "买家声称充电宝功能损坏与描述不符，卖家坚持功能正常。",
-        timeLeft: "2天12小时",
+        disputeDate: new Date(disputeData.timestamp * 1000).toLocaleDateString(),
+        status: disputeData.result === 0 ? "进行中" : disputeData.result === 1 ? "买家胜" : "卖家胜",
+        votes: voteStatus
+          ? { seller: voteStatus.voteCount - voteStatus.approveBuyerCount, buyer: voteStatus.approveBuyerCount }
+          : { seller: 0, buyer: 0 },
+        requiredVotes: 3,
+        description: "争议涉及 NFT 交易，双方对商品描述一致性有分歧。",
+        timeLeft: disputeData.result === 0 ? calculateTimeLeft(disputeData.timestamp) : "已结束",
         evidence: [
           {
-            title: "原始描述截图",
-            description: "NFT上架时的原始描述和特性列表",
-            type: "image",
-            url: "/placeholder.svg?height=300&width=300",
-            submittedBy: "buyer",
-          },
-          {
-            title: "交易确认截图",
-            description: "买家确认交易的截图，显示了同意条款",
+            title: "描述截图",
+            description: "NFT 上架时的描述",
             type: "image",
             url: "/placeholder.svg?height=300&width=300",
             submittedBy: "seller",
           },
           {
-            title: "元数据比较",
-            description: "原始承诺的元数据与实际交付的元数据比较",
-            type: "document",
-            url: "#",
+            title: "商品照片",
+            description: "买家提供的商品照片",
+            type: "image",
+            url: "/placeholder.svg?height=300&width=300",
             submittedBy: "buyer",
           },
         ],
         updates: [
           {
-            date: "2025-04-20",
+            date: new Date(disputeData.timestamp * 1000).toLocaleDateString(),
             content: "争议已提交，等待仲裁",
           },
-          {
-            date: "2025-04-21",
-            content: "卖家提交了回应和证据",
-          },
-          {
-            date: "2025-04-22",
-            content: "买家提交了额外证据",
-          },
         ],
+        voteRequestId: requestId,
       }
 
-      setDispute(disputeData)
+      const voteDetailsData = voteStatus
+        ? voteStatus.votes.map((vote: any) => ({
+            voter: vote.voter,
+            voted: vote.hasVoted ? (vote.approveBuyer ? "支持买家" : "支持卖家") : "未投票",
+          }))
+        : Array(3).fill({ voter: "未投票", voted: "未投票" })
+
+      setDispute(disputeDetails)
+      setVoteSubmitted(hasVoted)
+      setConfirmationSubmitted(transactionConfirmed)
+      setVoteDetails(voteDetailsData)
+    } catch (error) {
+      console.error("加载纠纷失败:", error)
+      toast.error("加载纠纷失败，请稍后重试")
+      setDispute(null)
+    } finally {
       setLoading(false)
-    }, 1000)
-  }, [params.id])
+    }
+  }
+
+  useEffect(() => {
+    fetchDispute()
+  }, [address, resolvedParams.id])
+
+  // 订阅事件
+  useEffect(() => {
+    if (!dispute) return
+
+    const handleEvent = (event: string, data: any) => {
+      if (data.requestId === dispute.voteRequestId || (event === 'TransactionCompleted' && data.tokenId === dispute.id)) {
+        fetchDispute()
+        toast.info(
+          event === 'DisputeVoted' ? "投票已更新" :
+          event === 'DisputeVoteFinalized' ? "投票已结束，争议结果已确定" :
+          "争议已执行"
+        )
+      }
+    }
+
+    const unsubscribe = marketClient.subscribeToDisputeEvents(handleEvent, dispute.voteRequestId)
+
+    return () => unsubscribe()
+  }, [dispute])
+
+  // 计算剩余时间
+  const calculateTimeLeft = (timestamp: number) => {
+    const disputeEndTime = timestamp * 1000 + 7 * 24 * 60 * 60 * 1000
+    const now = Date.now()
+    const timeLeftMs = disputeEndTime - now
+    if (timeLeftMs <= 0) return "已结束"
+    const days = Math.floor(timeLeftMs / (24 * 60 * 60 * 1000))
+    const hours = Math.floor((timeLeftMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000))
+    return `${days}天${hours}小时`
+  }
 
   // 计算投票进度
   const calculateProgress = () => {
@@ -109,50 +187,103 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
   }
 
   // 处理投票
-  const handleVote = (party: string) => {
-    if (voteSubmitted) return
+  const handleVote = async (party: string) => {
+    if (!address || !window.ethereum) {
+      toast.error("请连接 MetaMask")
+      return
+    }
+    if (voteSubmitted || dispute.status !== "进行中") return
+    if (!dispute.voteRequestId || dispute.voteRequestId === 0) {
+      toast.error("此争议暂无投票请求")
+      return
+    }
 
-    setUserVote(party)
-
-    // 模拟投票提交
-    setTimeout(() => {
-      setDispute((prev) => {
-        const updatedVotes = { ...prev.votes }
-        updatedVotes[party] += 1
-
-        // 检查是否达到所需票数
-        const totalVotes = updatedVotes.seller + updatedVotes.buyer
-        let updatedStatus = prev.status
-
-        if (totalVotes >= prev.requiredVotes) {
-          updatedStatus = "已解决"
-        }
-
-        return {
-          ...prev,
-          votes: updatedVotes,
-          status: updatedStatus,
-          timeLeft: updatedStatus === "已解决" ? "已结束" : prev.timeLeft,
-        }
-      })
-
+    try {
+      toast.info("投票将提交至区块链，一旦确认无法更改。")
+      const requestId = dispute.voteRequestId
+      console.log("requestId:", requestId)
+      const approveBuyer = party === "buyer"
+      const txHash = await marketClient.voteDispute(requestId, approveBuyer)
+      toast.success(`投票成功，交易哈希: ${txHash}`)
+      await fetchDispute()
+      setUserVote(party)
       setVoteSubmitted(true)
-    }, 1000)
+    } catch (error) {
+      console.error("投票失败:", error)
+      toast.error(`投票失败: ${error.message || "未知错误"}`)
+    }
+  }
+
+  // 处理交易确认
+  const handleConfirmTransaction = async () => {
+    if (!address || !window.ethereum) {
+      toast.error("请连接 MetaMask")
+      return
+    }
+    if (confirmationSubmitted || (dispute.seller !== address && dispute.buyer !== address)) {
+      return
+    }
+
+    setConfirming(true)
+    try {
+      toast.info("确认交易将结束纠纷并执行交易，请确认您的决定。")
+      const txHash = await marketClient.confirmTransaction(dispute.id)
+      toast.success(`交易确认成功，交易哈希: ${txHash}`)
+      await fetchDispute()
+      setConfirmationSubmitted(true)
+    } catch (error) {
+      console.error("确认交易失败:", error)
+      toast.error(`确认交易失败: ${error.message || "未知错误"}`)
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  // 处理执行交易
+  const handleExecuteDispute = async () => {
+    if (!address || !window.ethereum) {
+      toast.error("请连接 MetaMask")
+      return
+    }
+    // console.log("___________________")
+    // console.log("seller:",dispute.seller.username)
+    // console.log("buyer:",dispute.buyer.username)
+    
+    // const temp = address.toUpperCase()
+    // console.log("address:",temp)
+    // if (dispute.seller.username !== temp && dispute.buyer.username !== temp) {
+    //   toast.error("仅买家或卖家可执行争议")
+    //   return
+    // }
+
+    setExecuting(true)
+    try {
+      toast.info("正在执行争议结果...")
+      const txHash = await marketClient.executeDisputeTransaction(dispute.id)
+      toast.success(`争议执行成功，交易哈希: ${txHash}`)
+      await fetchDispute()
+      setIsDisputeExecuted(true)
+    } catch (error) {
+      console.error("执行争议失败:", error)
+      toast.error(`执行争议失败: ${error.message || "未知错误"}`)
+    } finally {
+      setExecuting(false)
+    }
   }
 
   // 判断争议结果
   const getDisputeResult = () => {
-    if (!dispute || dispute.status !== "已解决") return null
+    if (!dispute || dispute.status === "进行中") return null
 
-    if (dispute.votes.seller > dispute.votes.buyer) {
-      return {
-        winner: "seller",
-        message: "仲裁结果支持卖家，交易有效。",
-      }
-    } else {
+    if (dispute.status === "买家胜") {
       return {
         winner: "buyer",
         message: "仲裁结果支持买家，交易已撤销。",
+      }
+    } else {
+      return {
+        winner: "seller",
+        message: "仲裁结果支持卖家，交易有效。",
       }
     }
   }
@@ -196,7 +327,11 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
             <h1 className="text-2xl font-bold">{dispute.nftTitle} 争议</h1>
             <Badge
               className={
-                dispute.status === "进行中" ? "bg-amber-500 hover:bg-amber-500" : "bg-green-500 hover:bg-green-500"
+                dispute.status === "进行中"
+                  ? "bg-amber-500 hover:bg-amber-500"
+                  : dispute.status === "买家胜"
+                  ? "bg-blue-500 hover:bg-blue-500"
+                  : "bg-green-500 hover:bg-green-500"
               }
             >
               {dispute.status}
@@ -239,10 +374,14 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
             <CardContent className="p-6">
               <div className="aspect-square relative bg-muted rounded-lg overflow-hidden mb-4">
                 <Image
-                  src={dispute.nftImage || "/placeholder.svg"}
+                  src={dispute.nftImage}
                   alt={dispute.nftTitle}
                   fill
                   className="object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = "/placeholder.png"
+                  }}
+                  priority
                 />
               </div>
               <h3 className="font-semibold text-lg mb-4">交易信息</h3>
@@ -294,14 +433,14 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
           </Card>
         </div>
 
-        {/* 中间 - 双方观点 */}
+        {/* 中间 - 双方观点和投票详情 */}
         <div className="space-y-6">
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-full overflow-hidden">
                   <Image
-                    src={dispute.seller.avatar || "/placeholder.svg"}
+                    src={dispute.seller.avatar}
                     alt={dispute.seller.username}
                     width={100}
                     height={100}
@@ -333,7 +472,7 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-full overflow-hidden">
                   <Image
-                    src={dispute.buyer.avatar || "/placeholder.svg"}
+                    src={dispute.buyer.avatar}
                     alt={dispute.buyer.username}
                     width={100}
                     height={100}
@@ -362,6 +501,20 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
 
           <Card>
             <CardHeader>
+              <CardTitle>投票详情</CardTitle>
+              <CardDescription>当前投票情况</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {voteDetails.map((vote, index) => (
+                <p key={index} className="text-sm">
+                  投票者 {index + 1}: {vote.voter === "未投票" ? "未投票" : truncateAddress(vote.voter)} - {vote.voted}
+                </p>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>证据材料</CardTitle>
               <CardDescription>双方提交的证据</CardDescription>
             </CardHeader>
@@ -378,7 +531,7 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
                       {evidence.type === "image" ? (
                         <div className="h-16 w-16 rounded-md overflow-hidden bg-muted">
                           <Image
-                            src={evidence.url || "/placeholder.svg"}
+                            src={evidence.url}
                             alt={evidence.title}
                             width={100}
                             height={100}
@@ -411,7 +564,7 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
                         {evidence.type === "image" ? (
                           <div className="h-16 w-16 rounded-md overflow-hidden bg-muted">
                             <Image
-                              src={evidence.url || "/placeholder.svg"}
+                              src={evidence.url}
                               alt={evidence.title}
                               width={100}
                               height={100}
@@ -438,7 +591,7 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
                         {evidence.type === "image" ? (
                           <div className="h-16 w-16 rounded-md overflow-hidden bg-muted">
                             <Image
-                              src={evidence.url || "/placeholder.svg"}
+                              src={evidence.url}
                               alt={evidence.title}
                               width={100}
                               height={100}
@@ -462,12 +615,12 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
           </Card>
         </div>
 
-        {/* 右侧 - 投票区域 */}
+        {/* 右侧 - 投票和确认区域 */}
         <div>
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>参与投票</CardTitle>
-              <CardDescription>您的投票将帮助解决此争议。请仔细阅读双方观点和证据后再投票。</CardDescription>
+              <CardTitle>参与投票或执行交易</CardTitle>
+              <CardDescription>投票或执行将决定争议结果。请仔细阅读信息后再操作。</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -481,53 +634,108 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
                   <Progress value={progress.total} className="h-2" />
                 </div>
 
-                {dispute.status === "进行中" ? (
-                  <div className="space-y-4 pt-4">
-                    {!voteSubmitted ? (
-                      <>
-                        <Alert>
-                          <AlertTriangle className="h-4 w-4" />
-                          <AlertTitle>投票提示</AlertTitle>
-                          <AlertDescription>投票一旦提交无法更改。请确保您已仔细阅读所有信息。</AlertDescription>
-                        </Alert>
+                {/* 投票区域 */}
+                {dispute.status === "进行中" && !voteSubmitted && address !== dispute.seller && address !== dispute.buyer ? (
+                  <>
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>投票提示</AlertTitle>
+                      <AlertDescription>投票一旦提交无法更改。请确保您已仔细阅读所有信息。</AlertDescription>
+                    </Alert>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <Button
-                            onClick={() => handleVote("seller")}
-                            variant="outline"
-                            className="h-auto py-4 flex flex-col items-center"
-                          >
-                            <ThumbsUp className="h-6 w-6 mb-2" />
-                            <span className="font-medium">支持卖家</span>
-                            <span className="text-xs text-muted-foreground mt-1">@{dispute.seller.username}</span>
-                          </Button>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        onClick={() => handleVote("seller")}
+                        variant="outline"
+                        className="h-auto py-4 flex flex-col items-center"
+                        disabled={voteSubmitted || !dispute.voteRequestId}
+                      >
+                        <ThumbsUp className="h-6 w-6 mb-2" />
+                        <span className="font-medium">支持卖家</span>
+                        <span className="text-xs text-muted-foreground mt-1">@{dispute.seller.username}</span>
+                      </Button>
 
-                          <Button
-                            onClick={() => handleVote("buyer")}
-                            variant="outline"
-                            className="h-auto py-4 flex flex-col items-center"
-                          >
-                            <ThumbsUp className="h-6 w-6 mb-2" />
-                            <span className="font-medium">支持买家</span>
-                            <span className="text-xs text-muted-foreground mt-1">@{dispute.buyer.username}</span>
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <Alert className="bg-green-500/10 border-green-500/20">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <AlertTitle>投票已提交</AlertTitle>
-                        <AlertDescription>
-                          感谢您的参与！您支持了{userVote === "seller" ? "卖家" : "买家"}的观点。
-                        </AlertDescription>
-                      </Alert>
-                    )}
+                      <Button
+                        onClick={() => handleVote("buyer")}
+                        variant="outline"
+                        className="h-auto py-4 flex flex-col items-center"
+                        disabled={voteSubmitted || !dispute.voteRequestId}
+                      >
+                        <ThumbsUp className="h-6 w-6 mb-2" />
+                        <span className="font-medium">支持买家</span>
+                        <span className="text-xs text-muted-foreground mt-1">@{dispute.buyer.username}</span>
+                      </Button>
+                    </div>
+                  </>
+                ) : voteSubmitted ? (
+                  <Alert className="bg-green-500/10 border-green-500/20">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <AlertTitle>投票已提交</AlertTitle>
+                    <AlertDescription>
+                      感谢您的参与！您支持了{userVote === "seller" ? "卖家" : "买家"}的观点。
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {/* 交易确认区域 */}
+                {dispute.status === "进行中" && (address === dispute.seller || address === dispute.buyer) && !confirmationSubmitted ? (
+                  <div className="space-y-4">
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertTitle>交易确认</AlertTitle>
+                      <AlertDescription>
+                        如果双方同意交易，可提前结束争议并执行交易。确认后无法撤销。
+                      </AlertDescription>
+                    </Alert>
+                    <Button
+                      onClick={handleConfirmTransaction}
+                      className="w-full"
+                      disabled={confirming}
+                    >
+                      {confirming ? "确认中..." : "确认交易"}
+                    </Button>
                   </div>
-                ) : (
+                ) : confirmationSubmitted && dispute.status === "进行中" ? (
+                  <Alert className="bg-green-500/10 border-green-500/20">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <AlertTitle>交易已确认</AlertTitle>
+                    <AlertDescription>您已确认交易，等待另一方确认。</AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {/* 执行交易区域 */}
+                {!isDisputeExecuted ? (
+                  <div className="space-y-4">
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertTitle>执行争议</AlertTitle>
+                      <AlertDescription>
+                        投票已结束，请执行争议结果以完成交易（退款或转移 NFT）。执行后无法撤销。
+                      </AlertDescription>
+                    </Alert>
+                    <Button
+                      onClick={handleExecuteDispute}
+                      className="w-full"
+                      disabled={executing}
+                    >
+                      {executing ? "执行中..." : "执行交易"}
+                    </Button>
+                  </div>
+                ) : isDisputeExecuted ? (
+                  <Alert className="bg-green-500/10 border-green-500/20">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <AlertTitle>争议已执行</AlertTitle>
+                    <AlertDescription>争议结果已执行，交易已完成。</AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {dispute.status !== "进行中" && dispute.votes.seller + dispute.votes.buyer >= dispute.requiredVotes && !isDisputeExecuted && (
                   <Alert>
                     <Info className="h-4 w-4" />
-                    <AlertTitle>争议已解决</AlertTitle>
-                    <AlertDescription>此争议已经结束，不再接受新的投票。</AlertDescription>
+                    <AlertTitle>投票已完成</AlertTitle>
+                    <AlertDescription>
+                      争议投票已结束，请执行争议结果以完成交易。
+                    </AlertDescription>
                   </Alert>
                 )}
               </div>
@@ -539,15 +747,20 @@ export default function ArbitrationDetailPage({ params }: { params: { id: string
               <CardTitle>仲裁规则</CardTitle>
             </CardHeader>
             <CardContent className="text-sm space-y-2">
-              <p>• 所有争议需要达到规定票数才能结束</p>
-              <p>• 参与人数由交易金额决定，始终为奇数</p>
-              <p>• 一个账户只能投票一次</p>
-              <p>• 投票一旦提交无法更改</p>
-              <p>• 争议结束后，系统将自动执行结果</p>
+              <p>• 争议需 3 票结束，多数票决定结果</p>
+              <p>• 仅非交易方可投票</p>
+              <p>• 投票不可更改</p>
+              <p>• 双方确认可提前结束争议</p>
+              <p>• 争议结束后需执行结果以完成交易</p>
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
   )
+}
+
+// 截断地址显示
+function truncateAddress(address: string) {
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`
 }

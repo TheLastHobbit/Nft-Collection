@@ -101,7 +101,7 @@ export default function MyCollectionsPage() {
       toast.error('获取在售 NFT 失败');
     } finally {
       setIsLoading(false);
-    }
+    } 
   };
 
   const handleBuy = async (tokenId: number) => {
